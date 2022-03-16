@@ -1,6 +1,6 @@
+import json
 from flask import request, redirect
 from __init__ import *
-from database import *
 
 @app.route("/admin")
 def admin():
@@ -53,11 +53,20 @@ def detail(id):
     else:
         result = "<meta charset\"UTF-8\"/><h1>{0}</h1><h2>ID: {1}</h2><h3>成员列表：</h3>".format(detail["name"], id)
         for i in event[int(id)]["member"].keys():
-            result += "<h4>{}</h4>".format(i)
+            maxJudger = "暂未评分"
+            maxScore = 0
+            for j in judger.keys():
+                if judger[j].get(int(id), False):
+                    for p in judger[j][int(id)].keys():
+                        if p == i:
+                            if maxScore < judger[j][int(id)][p]:
+                                maxJudger = judger[j]["name"]
+                                maxScore = judger[j][int(id)][p]
+            result += "<h4>{} <a href=\"{}/admin/rm_member/{}/{}\">删除</a> 打分最高：{} {}分</h4>".format(i, ADDRESS, id, i, maxJudger, maxScore)
         result += ""
         result += '''
         <form action="{0}/admin/add_member/{1}">
-        成员名:<br>
+        成员名: (批量添加，请使用半角逗号 , 分隔) <br>
         <input type="text" name="name">
         <br><br>
         <input type="submit" value="提交">
@@ -79,9 +88,26 @@ def add_member(id):
         return "<meta charset\"UTF-8\"/><h1>找不到会话！</h1><a href=\"{}/admin\">返回管理主页</a>".format(ADDRESS)
     else:
         name = request.args.get("name")
-        event[int(id)]["member"][name] = []
+        if "," in name:
+            names = name.split(",")
+            for n in names:
+                event[int(id)]["member"][n] = []
+        else:
+            event[int(id)]["member"][name] = []
         return "<meta charset\"UTF-8\"/><h1>添加成功！</h1><a href=\"{}/admin/detail/{}\">返回详细页</a>".format(ADDRESS, id)
 
+@app.route("/admin/rm_member/<string:id>/<string:name>")
+def rm_member(id, name):
+    try:
+        event[int(id)]
+    except:
+        return "<meta charset\"UTF-8\"/><h1>找不到会话！</h1><a href=\"{}/admin\">返回管理主页</a>".format(ADDRESS)
+    else:
+        if name not in event[int(id)]["member"]:
+            return "<meta charset\"UTF-8\"/><h1>找不到此成员！</h1><meta http-equiv=\"refresh\" content=\"{}/admin/detail/{}\"\><h3>3秒后返回</h3>".format(ADDRESS, id)
+        else:
+            del event[int(id)]["member"][name]
+            return redirect("{}/admin/detail/{}".format(ADDRESS, id), 302)
 
 @app.route("/admin/start/<string:id>")
 def start(id):
@@ -102,3 +128,7 @@ def end(id):
     else:
         event[int(id)]["status"] = False
         return redirect("{}/admin/detail/{}".format(ADDRESS, id), 302)
+
+@app.route("/admin/system")
+def system():
+    return json.dumps([ID, event, judger]), {"content-type": "application/json"}
